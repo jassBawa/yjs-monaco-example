@@ -1,0 +1,30 @@
+{
+  "name": "monaco-example-yjs",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "ensureBundle": "[ -f ./dist/monaco.bundle.js ] || npm run dist",
+    "watch": "webpack -w --stats errors-only",
+    "dist": "webpack --mode=production",
+    "start": "npm run ensureBundle && webpack serve --open monaco.html",
+    "start:server": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.10.0",
+  "dependencies": {
+    "css-loader": "^7.1.2",
+    "monaco-editor": "^0.52.2",
+    "monaco-editor-webpack-plugin": "^7.1.0",
+    "style-loader": "^4.0.0",
+    "y-monaco": "^0.1.6",
+    "y-websocket": "^3.0.0",
+    "yjs": "^13.6.27"
+  },
+  "devDependencies": {
+    "webpack-cli": "^6.0.1",
+    "webpack-dev-server": "^5.2.2"
+  }
+}
