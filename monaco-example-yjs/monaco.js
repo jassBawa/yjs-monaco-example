@@ -1,124 +1,117 @@
-/* eslint-env browser */
-
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
 import { MonacoBinding } from 'y-monaco';
 import * as monaco from 'monaco-editor';
 import * as random from 'lib0/random';
 
-export const usercolors = [
-  { color: '#30bced', light: '#30bced33' },
-  { color: '#6eeb83', light: '#6eeb8333' },
-  { color: '#ffbc42', light: '#ffbc4233' },
-  { color: '#ecd444', light: '#ecd44433' },
-  { color: '#ee6352', light: '#ee635233' },
-  { color: '#9ac2c9', light: '#9ac2c933' },
-  { color: '#8acb88', light: '#8acb8833' },
-  { color: '#1be7ff', light: '#1be7ff33' },
-];
+document.addEventListener('DOMContentLoaded', () => {
+  const ydoc = new Y.Doc();
+  const docsMap = ydoc.getMap('documents');
+  const docList = ydoc.getArray('doc-list');
 
-export const userColor = usercolors[random.uint32() % usercolors.length];
+  (async () => {
+    const token = await fetch('http://localhost:5173/auth/token').then(r => r.text());
 
-let provider = null;
-let ydoc = null;
-let monacoBinding = null;
-let editor = null;
-let currentRoom = null;
+    window.provider = new WebsocketProvider('ws://localhost:3002', 'shared-room', ydoc, {
+      params: { yauth: token }
+    });
 
-// Get initial auth token
-let authToken = await fetch('http://localhost:5173/auth/token').then((res) => res.text());
+    provider.awareness.setLocalStateField('user', {
+      name: 'User ' + Math.floor(Math.random() * 100),
+      color: random.uint32() % 2 ? '#30bced' : '#ee6352',
+      colorLight: random.uint32() % 2 ? '#30bced33' : '#ee635233'
+    });
 
-async function updateAuthToken() {
-  try {
-    authToken = await fetch('http://localhost:5173/auth/token').then((res) =>
-      res.text()
-    );
-    if (provider) provider.params.yauth = authToken;
-  } catch (e) {
-    console.error('Failed to refresh token, retrying...', e);
-    setTimeout(updateAuthToken, 1000);
-    return;
-  }
-  setTimeout(updateAuthToken, 30 * 60 * 1000); // every 30 mins
-}
-updateAuthToken();
+    setupUI(ydoc, docsMap, docList);
+  })();
+});
 
-function loadRoom(roomId) {
-  if (currentRoom === roomId) return; // avoid redundant reloads
-  currentRoom = roomId;
-
-  if (provider) {
-    provider.destroy();
-    provider = null;
-  }
-
-  ydoc = new Y.Doc();
-  provider = new WebsocketProvider('ws://localhost:3002', roomId, ydoc, {
-    params: { yauth: authToken },
+async function setupUI(ydoc, docsMap, docList) {
+  const editor = monaco.editor.create(document.getElementById('monaco-editor'), {
+    value: '',
+    language: 'javascript',
+    theme: 'vs-dark',
+    automaticLayout: true
   });
 
-  const ytext = ydoc.getText('monaco');
+  let currentBinding = null;
 
-  if (!editor) {
-    editor = monaco.editor.create(
-      document.getElementById('monaco-editor'),
-      {
-        value: '',
-        language: 'javascript',
-        theme: 'vs-dark',
-      }
-    );
-  } else {
-    editor.setValue('');
+  function bindEditorToDoc(docname) {
+    if (currentBinding) {
+      currentBinding.destroy();
+    }
+
+    let ytext = docsMap.get(docname);
+    if (!ytext) {
+      ytext = new Y.Text();
+      docsMap.set(docname, ytext);
+    }
+
+    // Set Monaco model content and bind
+    const model = editor.getModel();
+    model.setValue(ytext.toString());
+
+    currentBinding = new MonacoBinding(ytext, model, new Set([editor]), provider.awareness);
+    currentBinding.docname = docname;
+
+    renderDocList();
   }
 
-  provider.awareness.setLocalStateField('user', {
-    name: 'User ' + Math.floor(Math.random() * 100),
-    color: userColor.color,
-    colorLight: userColor.light,
-  });
+  function renderDocList() {
+    const ul = document.getElementById('doc-list');
+    ul.innerHTML = '';
+    const names = docList.toArray();
+    const active = currentBinding?.docname;
+    names.forEach(name => {
+      const li = document.createElement('li');
+      li.textContent = name;
+      if (name === active) li.classList.add('active');
+      ul.appendChild(li);
+    });
+  }
 
-  monacoBinding = new MonacoBinding(
-    ytext,
-    editor.getModel(),
-    new Set([editor]),
-    provider.awareness
-  );
-
-  window.example = { provider, ydoc, ytext, monacoBinding };
-}
-
-function switchDoc(docId) {
-  document.querySelectorAll('button').forEach((btn) =>
-    btn.classList.remove('active-doc')
-  );
-
-  const btn = Array.from(document.querySelectorAll('button')).find((b) =>
-    b.textContent.includes(docId)
-  );
-  if (btn) btn.classList.add('active-doc');
-
-  loadRoom(docId);
-}
-
-function setupConnectButton() {
-  const connectBtn = document.getElementById('y-connect-btn');
-  connectBtn.addEventListener('click', () => {
-    if (provider.shouldConnect) {
-      provider.disconnect();
-      connectBtn.textContent = 'Connect';
-    } else {
-      provider.connect();
-      connectBtn.textContent = 'Disconnect';
+  // Setup doc list interaction
+  document.getElementById('doc-list').addEventListener('click', e => {
+    if (e.target.tagName === 'LI') {
+      const docname = e.target.textContent;
+      bindEditorToDoc(docname);
     }
   });
+
+  document.getElementById('new-doc-btn').addEventListener('click', () => {
+    const name = prompt('New document name');
+    if (name && !docList.toArray().includes(name)) {
+      docList.push([name]);
+      bindEditorToDoc(name);
+    }
+  });
+
+  docList.observe(() => renderDocList());
+
+  // Load initial document
+  const all = docList.toArray();
+  if (all.length) {
+    bindEditorToDoc(all[0]);
+  }
+
+  // Awareness: show users
+  provider.awareness.on('change', () => {
+    const usersDiv = document.getElementById('users');
+    usersDiv.innerHTML = Array.from(provider.awareness.getStates().values())
+      .filter(s => s.user)
+      .map(s => `<div style="color:${s.user.color}">• ${s.user.name}</div>`)
+      .join('');
+  });
+
+  // Connect/disconnect
+  document.getElementById('y-connect-btn').onclick = () => {
+    const btn = document.getElementById('y-connect-btn');
+    if (provider.wsconnected) {
+      provider.disconnect();
+      btn.textContent = 'Connect';
+    } else {
+      provider.connect();
+      btn.textContent = 'Disconnect';
+    }
+  };
 }
-
-// expose globally
-window.loadRoom = loadRoom;
-window.switchDoc = switchDoc;
-
-window.addEventListener('load', () => {
-  setupConnectButton();
-  loadRoom('doc1');
-});
