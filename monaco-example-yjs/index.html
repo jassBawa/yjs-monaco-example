@@ -1,0 +1,52 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Yjs Multi-Document Monaco Example</title>
+    <style>
+      body { margin: 0; padding: 0; display: flex; height: 100vh; }
+      #sidebar { width: 200px; border-right: 1px solid #ccc; padding: 10px; box-sizing: border-box; }
+      #doc-list { list-style: none; padding: 0; margin: 0; }
+      #doc-list li { cursor: pointer; padding: 4px 8px; }
+      #doc-list li.active { font-weight: bold; background: #e0e0e0; }
+      #editor-container { flex: 1; display: flex; flex-direction: column; }
+      #monaco-editor { flex: 1; }
+      #users { padding: 10px; font-size: 0.9em; }
+      .yRemoteSelection { background-color: rgba(250, 129, 0, 0.5); }
+      .yRemoteSelectionHead {
+        position: absolute;
+        border-left: orange solid 2px;
+        border-top: orange solid 2px;
+        border-bottom: orange solid 2px;
+        height: 100%;
+        box-sizing: border-box;
+      }
+      .yRemoteSelectionHead::after {
+        content: '';
+        position: absolute;
+        border: 3px solid orange;
+        border-radius: 4px;
+        left: -4px;
+        top: -5px;
+      }
+      #controls { padding: 10px; }
+      #y-connect-btn { margin-bottom: 10px; }
+    </style>
+  </head>
+  <body>
+    
+    <div id="sidebar">
+      <button id="y-connect-btn">Disconnect</button>
+      <ul id="doc-list"></ul>
+      <button id="new-doc-btn">+ New Document</button>
+      <div id="users"></div>
+    </div>
+    <div id="editor-container">
+      <div id="monaco-editor"></div>
+    </div>
+    <script type="text/javascript" src="./dist/monaco.bundle.js">
+     
+    </script>
+  </body>
+</html>
